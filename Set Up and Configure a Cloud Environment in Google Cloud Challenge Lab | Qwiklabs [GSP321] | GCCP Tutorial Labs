@@ -12,7 +12,7 @@ Task - 9 : Provide access for an additional engineer
 
 
 
-**Task - 1 : Create development VPC manually**
+##Task - 1 : Create development VPC manually##
 
 gcloud compute networks create griffin-dev-vpc --subnet-mode custom
 
@@ -24,7 +24,7 @@ gcloud compute networks subnets create griffin-dev-mgmt --network=griffin-dev-vp
 
 
 
-**Task - 2 : Create production VPC manually**
+##Task - 2 : Create production VPC manually##
  
  gsutil cp -r gs://cloud-training/gsp321/dm .
 
@@ -41,7 +41,7 @@ cd ..
 
 
 
-**Task - 3 : Create bastion host**
+##Task - 3 : Create bastion host##
 
 gcloud compute instances create bastion --network-interface=network=griffin-dev-vpc,subnet=griffin-dev-mgmt  --network-interface=network=griffin-prod-vpc,subnet=griffin-prod-mgmt --tags=ssh --zone=us-east1-b
 
@@ -53,7 +53,7 @@ gcloud compute firewall-rules create fw-ssh-prod --source-ranges=0.0.0.0/0 --tar
 
 
 
-**Task - 4 : Create and configure Cloud SQL Instance**
+##Task - 4 : Create and configure Cloud SQL Instance##
 
 gcloud sql instances create griffin-dev-db --root-password password --region=us-east1
 
@@ -61,7 +61,8 @@ gcloud sql connect griffin-dev-db
 *Enter "password" as password in the section*
 
 CREATE DATABASE wordpress;
-GRANT ALL PRIVILEGES ON wordpress.* TO "wp_user"@"%" IDENTIFIED BY "stormwind_rules";
+CREATE USER "wp_user"@"%" IDENTIFIED BY "stormwind_rules";
+GRANT ALL PRIVILEGES ON wordpress.* TO "wp_user"@"%";
 FLUSH PRIVILEGES;
 
 exit
@@ -70,7 +71,7 @@ exit
 
 
 
-**Task - 5 : Create Kubernetes cluster**
+##Task - 5 : Create Kubernetes cluster##
 
 gcloud container clusters create griffin-dev \
   --network griffin-dev-vpc \
@@ -90,7 +91,7 @@ gsutil cp -r gs://cloud-training/gsp321/wp-k8s .
 
 
 
-**Task - 6 : Prepare the Kubernetes cluster**
+##Task - 6 : Prepare the Kubernetes cluster##
 
 *Open Editor -> wp-k8s -> wp-env.yaml Change username and password to:*
 *username : wp_user*
@@ -109,8 +110,7 @@ kubectl create secret generic cloudsql-instance-credentials \
 
 
 
-
-**Task - 7 : Create a WordPress deployment**
+##Task - 7 : Create a WordPress deployment##
 
 *In editor: wp-deployment.yaml -> replace YOUR_SQL_INSTANCE with griffin-dev-db.*
 *Save.*
@@ -122,7 +122,7 @@ kubectl create -f wp-service.yaml
 
 
 
-**Task - 8 : Enable monitoring**
+##Task - 8 : Enable monitoring##
 *Navigation Menu -> Kubernetes Engine -> Services and Ingress -> Copy Endpoint's address.*
 
 Navigation Menu -> Monitoring -> Uptime Checks -> + CREATE UPTIME CHECK
@@ -139,7 +139,7 @@ Next -> Next -> Create
 
 
 
-**Task - 9 : Provide access for an additional engineer**
+##Task - 9 : Provide access for an additional engineer##
 
 Navigation Menu -> IAM & Admin -> IAM -> ADD
 New Member : {Username 2 from Lab instruction page}
