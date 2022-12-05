@@ -1,0 +1,510 @@
+This is a straightforward workaround for the lab GSP345. 
+I've made this an All-CLI approach to this lab.
+Replace the commands wherever mentioned. 
+
+
+
+##Prerequisite Steps: 
+--->Copy paste in cloud shell.
+
+
+VAR1=bucket_name             
+ 
+VAR2=instance_name
+ 
+VAR3=vpc_name
+ 
+--------------|
+ 
+DMNAME=$(gcloud deployment-manager deployments list --filter=qldm --format="value('name')")
+ 
+BUCKET_NAME=$(gcloud deployment-manager deployments describe $DMNAME --format=json | jq -r ".outputs |  map(select(.name | contains(\"${VAR1}\") )) | .[].finalValue")
+ 
+INSTANCE_NAME=$(gcloud deployment-manager deployments describe $DMNAME --format=json | jq -r ".outputs |  map(select(.name | contains(\"${VAR2}\") )) | .[].finalValue")
+ 
+VPC_NAME=$(gcloud deployment-manager deployments describe $DMNAME --format=json | jq -r ".outputs |  map(select(.name | contains(\"${VAR3}\") )) | .[].finalValue")
+ 
+
+echo BUCKET_NAME:  {Replace with $BUCKET_NAME}
+ 
+echo INSTANCE_NAME:  {Replace with $INSTANCE_NAME}
+ 
+echo VPC_NAME: {Replace with $VPC_NAME}
+-------------------------|
+
+Note: Complete all the steps first then click the checkpoints.
+
+# Step 1:
+ 
+touch main.tf
+touch variables.tf
+mkdir -p modules/instances
+touch modules/instances/instances.tf
+touch modules/instances/outputs.tf
+touch modules/instances/variables.tf
+mkdir -p modules/storage
+touch modules/storage/storage.tf
+touch modules/storage/outputs.tf
+touch modules/storage/variables.tf
+ 
+ 
+---> Make sure to replace the <enter here> with the zone assigned to you in the cloud shell.
+---> copy paste this to make changes to the terraform files in the CLI.
+---> Replace ${DEVSHELL_PROJECT_ID} with Project ID.
+ 
+cat > variables.tf <<EOL
+variable "region" {
+default = "us-east1"
+}
+ 
+variable "zone" {
+default = "<enter here>"
+}
+ 
+variable "project_id" {
+default = "${DEVSHELL_PROJECT_ID}"
+}
+EOL
+ 
+-------------------|
+ 
+cat > modules/instances/variables.tf <<EOL
+variable "region" {
+default = "us-east1"
+}
+ 
+variable "zone" {
+default = "<enter here>"
+}
+ 
+variable "project_id" {
+default = "${DEVSHELL_PROJECT_ID}"
+}
+EOL
+ 
+--------------------|
+  
+cat > modules/storage/variables.tf <<EOL
+variable "region" {
+default = "us-east1"
+}
+ 
+variable "zone" {
+default = "<enter here>"
+}
+ 
+variable "project_id" {
+default = "${DEVSHELL_PROJECT_ID}"
+}
+EOL
+ 
+ --------------------|
+ 
+cat > main.tf << EOL
+terraform {
+required_providers {
+google = {
+ source = "hashicorp/google"
+ version = "3.55.0"
+}
+}
+}
+ 
+provider "google" {
+project     = var.project_id
+region      = var.region
+zone        = var.zone
+}
+ 
+module "instances" {
+source     = "./modules/instances"
+}
+EOL
+ 
+ 
+---> Now, run
+terraform init
+
+
+
+---> copy paste this to make changes to the terraform files in the CLI.
+ 
+cat > modules/instances/instances.tf << EOL
+resource "google_compute_instance" "tf-instance-1" {
+name         = "tf-instance-1"
+machine_type = "n1-standard-1"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "default"
+}
+}
+ 
+resource "google_compute_instance" "tf-instance-2" {
+name         = "tf-instance-2"
+machine_type = "n1-standard-1"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "default"
+}
+}
+EOL
+
+
+
+---> Replace $INSTANCE1_ID and 2 with the INSTANCE IDs in Navigation Menu/Compute Engine/Instances (click on both to reveal their instance ID).
+
+INSTANCE1_ID=$(gcloud compute instances describe tf-instance-1 --zone us-east1-b --format="json(id)" | jq -r .id) //Dont change this, plain copy paste.
+echo $INSTANCE1_ID
+ 
+INSTANCE2_ID=$(gcloud compute instances describe tf-instance-2 --zone us-east1-b --format="json(id)" | jq -r .id) //Dont change this, plain copy paste.
+echo $INSTANCE2_ID
+
+
+terraform import module.instances.google_compute_instance.tf-instance-1 $INSTANCE1_ID
+terraform import module.instances.google_compute_instance.tf-instance-2 $INSTANCE2_ID
+ 
+---> Then run
+terraform plan
+terraform apply -auto-approve
+ 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Task 2:
+ 
+ 
+---> Replace ${BUCKET_NAME} with given bucket name.
+
+cat > modules/storage/storage.tf << EOL
+resource "google_storage_bucket" "storage-bucket" {
+name          = "${BUCKET_NAME}"
+location      = "US"
+force_destroy = true
+uniform_bucket_level_access = true
+}
+EOL
+ 
+cat << EOF >> main.tf
+module "storage" {
+source     = "./modules/storage"
+}
+EOF
+ 
+ 
+---> Then run
+terraform init
+terraform apply -auto-approve
+ 
+ 
+---> Replace ${BUCKET_NAME} with given bucket name.
+
+cat > main.tf << EOL
+terraform {
+backend "gcs" {
+bucket  = "${BUCKET_NAME}"
+prefix  = "terraform/state"
+}
+required_providers {
+google = {
+ source = "hashicorp/google"
+ version = "3.55.0"
+}
+}
+}
+provider "google" {
+project     = var.project_id
+region      = var.region
+zone        = var.zone
+}
+ 
+module "instances" {
+source     = "./modules/instances"
+}
+module "storage" {
+source     = "./modules/storage"
+}
+EOL
+ 
+ 
+---> Then run
+terraform init
+ 
+ 
+ ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 
+ #Task 3:
+ 
+ 
+---> Replace $INSTANCE_NAME with given instance name (not instance.tf)
+
+cat > modules/instances/instances.tf << EOL
+resource "google_compute_instance" "tf-instance-1" {
+name         = "tf-instance-1"
+machine_type = "n1-standard-2"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "default"
+}
+}
+ 
+resource "google_compute_instance" "tf-instance-2" {
+name         = "tf-instance-2"
+machine_type = "n1-standard-2"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "default"
+}
+}
+ 
+resource "google_compute_instance" "${INSTANCE_NAME}" {
+name         = "${INSTANCE_NAME}"
+machine_type = "n1-standard-2"
+zone         = var.zone
+allow_stopping_for_update = true
+ 
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "default"
+}
+}
+EOL
+ 
+ 
+---> Then run
+terraform init
+terraform apply -auto-approve
+ 
+ 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Task 4:
+ 
+---> Replace $INSTANCE_NAME with given instance name (not instance.tf)
+terraform taint module.instances.google_compute_instance.$INSTANCE_NAME
+ 
+ 
+---> then run
+terraform plan
+terraform apply -auto-approve
+ 
+ 
+---> Copy paste all in the cloud shell.
+
+cat > modules/instances/instances.tf << EOL
+resource "google_compute_instance" "tf-instance-1" {
+name         = "tf-instance-1"
+machine_type = "n1-standard-2"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+ 
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "default"
+}
+}
+ 
+resource "google_compute_instance" "tf-instance-2" {
+name         = "tf-instance-2"
+machine_type = "n1-standard-2"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+ 
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "default"
+}
+}
+EOL
+ 
+ 
+---> then run
+terraform apply -auto-approve
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+# Task 5:
+ 
+ 
+ ---> Replace ${VPC_NAME} with given vpc name.
+
+cat << EOF >> main.tf
+module "vpc" {
+source  = "terraform-google-modules/network/google"
+version = "3.4.0"
+ 
+project_id   = var.project_id
+network_name = "${VPC_NAME}"
+routing_mode = "GLOBAL"
+ 
+subnets = [
+   {
+       subnet_name           = "subnet-01"
+       subnet_ip             = "10.10.10.0/24"
+       subnet_region         = "us-east1"
+   },
+   {
+       subnet_name           = "subnet-02"
+       subnet_ip             = "10.10.20.0/24"
+       subnet_region         = "us-east1"
+       subnet_private_access = "true"
+       subnet_flow_logs      = "true"
+       description           = "This subnet has a description"
+   }
+]
+}
+EOF
+ 
+ 
+
+---> run
+terraform init
+terraform apply -auto-approve
+ 
+
+
+---> Replace ${VPC_NAME} with given vpc name.
+---> Then Copy paste in the cloud shell.
+ 
+cat > modules/instances/instances.tf << EOL
+resource "google_compute_instance" "tf-instance-1" {
+name         = "tf-instance-1"
+machine_type = "n1-standard-2"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+ 
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "${VPC_NAME}"
+subnetwork = "subnet-01"
+}
+}
+ 
+resource "google_compute_instance" "tf-instance-2" {
+name         = "tf-instance-2"
+machine_type = "n1-standard-2"
+zone         = var.zone
+metadata_startup_script = <<-EOT
+   #!/bin/bash
+EOT
+allow_stopping_for_update = true
+ 
+boot_disk {
+initialize_params {
+ image = "debian-cloud/debian-10"
+}
+}
+ 
+network_interface {
+network = "${VPC_NAME}"
+subnetwork = "subnet-02"
+}
+}
+EOL
+ 
+ 
+---> run
+terraform init
+terraform apply -auto-approve
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Task 6:
+
+
+
+---> First, replace whatever has a $ with whats given in the brackets
+---> Then Copy paste in the cloud shell.
+1.
+ 
+cat << EOF >> main.tf
+resource "google_compute_firewall" "tf-firewall" {
+name    = "tf-firewall"
+network = "projects/${DEVSHELL_PROJECT_ID}/global/networks/${VPC_NAME}"
+ 
+allow {
+protocol = "tcp"
+ports    = ["80"]
+}
+ 
+source_tags = ["web"]
+source_ranges = ["0.0.0.0/0"]
+}
+EOF
+ 
+2.
+ 
+---> run
+terraform init
+terraform apply -auto-approve
+ 
+Congratulations, you're done with this lab.
