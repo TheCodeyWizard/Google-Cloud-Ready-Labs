@@ -1,3 +1,5 @@
+[Click here for Video](https://youtu.be/PHuqPj-CsWA)
+
 GOOGLE CLOUD FUNDAMENTALS: CORE INFRASTRUCTURE QUIZ ANSWERS (TOPIC WISE) ::
 
 # Topic 1:
